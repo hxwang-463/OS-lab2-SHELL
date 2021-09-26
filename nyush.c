@@ -27,49 +27,63 @@ void sig_int(int x){
     return;
 }
 
-int my_system(char **argv, int io_redirect, char* redirect_path){
-    
-    int pid;
-    if (pid=fork() == 0) {
-        if(io_redirect){
-            int fp;
-            if(io_redirect==1){
-                fp = open(redirect_path, O_RDWR);
+// int my_system(char **argv, int io_redirect, char* redirect_path)
+void my_system(Link* node){
+    if(!node)return;
+    int fp;
+    if(fork() == 0) {
+        if(node->input_fd){
+            if(node->input_fd==-1){ //file
+                fp = open(node->input_file, O_RDWR);
                 if(fp==-1){
                     fprintf(stderr, "Error: invalid file\n");
                     exit(-1);}
-                dup2(fp, STDIN_FILENO);}
-            else{
-                if(io_redirect==2){fp = open(redirect_path, O_WRONLY|O_CREAT|O_TRUNC, 00600);}
-                else if(io_redirect==3){fp = open(redirect_path, O_RDWR|O_CREAT|O_APPEND, 00600);}
-                else{fprintf(stderr, "Unknown Error 1\n");exit(-1);}
+                dup2(fp, STDIN_FILENO);
+            }
+            else{ //pipe
+                dup2(node->input_fd, STDIN_FILENO);
+            }
+        }
+        if(node->output_fd){
+            if(node->output_fd==-1){
+                fp = open(node->output_file, O_WRONLY|O_CREAT|O_TRUNC, 00600);
                 if(fp==-1){
                     fprintf(stderr, "Error: invalid file\n");
                     exit(-1);}
-                dup2(fp, STDOUT_FILENO);}
+                dup2(fp, STDOUT_FILENO);
+            }
+            else if(node->output_fd==-2){
+                fp = open(node->output_file, O_RDWR|O_CREAT|O_APPEND, 00600);
+                if(fp==-1){
+                    fprintf(stderr, "Error: invalid file\n");
+                    exit(-1);}
+                dup2(fp, STDOUT_FILENO);
+            }
+            else dup2(node->output_fd, STDOUT_FILENO);
         }
         
 
         char* prog_name = (char*)malloc(1001*sizeof(char));
-        if(argv[0][0]==0x2f||argv[0][0]==0x2e){
-            execv(argv[0], argv);
+        if(node->command[0][0]==0x2f||node->command[0][0]==0x2e){
+            execv(node->command[0], node->command);
             fprintf(stderr, "Error: invalid progarm\n");
             exit(-1);
         }
         char prog_root[1001] = {0};
         strcpy(prog_root, "/bin/");
-        strcat(prog_root, argv[0]);
-        execv(prog_root, argv);
+        strcat(prog_root, node->command[0]);
+        execv(prog_root, node->command);
         strcpy(prog_root, "/usr/bin/");
-        strcat(prog_root, argv[0]);
-        execv(prog_name, argv);
+        strcat(prog_root, node->command[0]);
+        execv(prog_name, node->command);
         fprintf(stderr, "Error: invalid progarm\n");
         exit(-1);
     }
     else{
+        my_system(node->next);
         wait(NULL);
     }
-    return 0;
+    return;
 }
 
 void command_parser(char* command_line, int is_first_command, int is_last_command, int input_fd, int output_fd){ //no pipe in this function
@@ -282,8 +296,7 @@ void command_line_parser(char* command_line){  //deal with pipe
         command_prev=command;
         command=command_next;
     }
-
-
+    my_system(head);
 }
 
 
