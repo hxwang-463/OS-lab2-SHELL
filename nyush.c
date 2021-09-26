@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#define N_pipe 10   
 
 typedef struct link{
     char **command;
@@ -20,18 +21,21 @@ typedef struct link{
 }Link;
 Link* head = NULL;
 
+typedef struct jobs{
+    int num;
+    int check;
+    char* command_line;
+    int pid_num;
+    int pid[N_pipe];
+    struct jobs* next;
+}Jobs;
+Jobs* head_jobs = (Jobs*)malloc(sizeof(Jobs));
+Jobs* tail_jobs = head_jobs;
 
-
-void sig_int(int x){
-    printf("\n");
-    return;
-}
-
-// int my_system(char **argv, int io_redirect, char* redirect_path)
 void my_system(Link* node){
     if(!node)return;
-    int fp;
-    if(fork() == 0) {
+    int pid_child, wstatus, fp;
+    if(pid_child = fork() == 0) {
         if(node->input_fd){
             if(node->input_fd==-1){ //file
                 fp = open(node->input_file, O_RDWR);
@@ -81,7 +85,23 @@ void my_system(Link* node){
     }
     else{
         my_system(node->next);
-        wait(NULL);
+        waitpid(pid_child, &wstatus, WUNTRACED);
+        if (WIFSTOPPED(wstatus)){ // child be stopped
+            if(tail_jobs->check){ //check =1: finish; check =0: still open
+                tail_jobs->next = (Jobs*)malloc(sizeof(Jobs));
+                tail_jobs->next->num = tail_jobs->num +1 ;
+                tail_jobs = tail_jobs->next;
+                tail_jobs->check = 0;
+                tail_jobs->pid_num = 1;
+                tail_jobs->pid[0] = pid_child;
+                tail_jobs->next = NULL;
+            }
+            else{
+                tail_jobs->pid[tail_jobs->pid_num] = pid_child;
+                tail_jobs->pid_num += 1;
+            }
+        }
+
     }
     return;
 }
@@ -135,7 +155,11 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             fprintf(stderr, "Error: invalid command\n");
             return;
         }
-
+        Jobs* probe = head_jobs->next;
+        while(probe){
+            printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+            probe = probe->next;
+        }
 
 
         return;
@@ -145,7 +169,7 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             fprintf(stderr, "Error: invalid command\n");
             return;
         }
-
+        
 
 
         return;
@@ -249,7 +273,6 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             one_command->command[i+1] = NULL;
             one_command->next = head;
             head=one_command;
-            // my_system(argv, io_redirect, redirect_path);
             return;
 
 
@@ -262,7 +285,6 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
     one_command->command[i] = NULL;
     one_command->next = head;
     head=one_command;
-    // my_system(argv, 0, NULL);
 }
 
 
@@ -299,6 +321,11 @@ void command_line_parser(char* command_line){  //deal with pipe
     my_system(head);
 }
 
+void sig_int(int x){
+    printf("\n");
+    return;
+}
+
 
 int main(){
     signal(SIGINT, sig_int);
@@ -306,6 +333,10 @@ int main(){
     signal(SIGTERM, sig_int);
     signal(SIGSTOP, sig_int);
     signal(SIGTSTP, sig_int);
+
+    head_jobs->num = 0;
+    head_jobs->check = 1;
+    head_jobs->next = NULL;
 
     char working_directory[1024] = {0};
     char* current_folder;
@@ -321,16 +352,12 @@ int main(){
         command_line[strlen(command_line)-1] = 0;
         command_line_parser(command_line);
 
-        // Link * check;
-        // check = head;
-        // while(check){
-        //     printf("%s ", check->command[0]);
-        //     printf("%d ", check->input_fd);
-        //     printf("%s ", check->input_file);
-        //     printf("%d ", check->output_fd);
-        //     printf("%s\n", check->output_file);
-        //     check = check->next;
-        // }
+        if(tail_jobs->check == 0){
+            tail_jobs->command_line = (char*)malloc(1001*sizeof(char));
+            strcpy(tail_jobs->command_line, command_line);
+            tail_jobs->check =1;
+            printf("[%d] Stopped\t%s\n", tail_jobs->num, tail_jobs->command_line);
+        }
 
 
     }
