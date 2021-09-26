@@ -10,13 +10,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-typedef struct {
+typedef struct link{
     char **command;
     int input_fd;
     char* input_file;
     int output_fd;
     char* output_file;
-    struct vari* next;
+    struct link* next;
 }Link;
 Link* head = NULL;
 
@@ -74,6 +74,7 @@ int my_system(char **argv, int io_redirect, char* redirect_path){
 
 void command_parser(char* command_line, int is_first_command, int is_last_command, int input_fd, int output_fd){ //no pipe in this function
 
+    if(is_first_command)head=NULL; // can be improve, free the space
     char command_line_new[1001];
     memcpy(command_line_new,command_line, 1001);
     char* command;
@@ -137,10 +138,18 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
     }
 
     Link *one_command=(Link*)malloc(sizeof(Link));
+    one_command->input_fd = 0;
+    one_command->output_fd = 0;
+    one_command->input_file = (char*)malloc(1001*sizeof(char));
+    one_command->output_file = (char*)malloc(1001*sizeof(char));
+
+
+    if(input_fd!=-1) one_command->input_fd = input_fd;
+    if(output_fd!=-1) one_command->output_fd = output_fd;
 
 
     char** argv;
-    argv = (char**)malloc(sizeof(char*)*1001);
+    one_command->command = (char**)malloc(sizeof(char*)*1001);
     
     int io_redirect = 0; // 0:default 1:< 2:> 3:>>
     char redirect_path[1001] = {0};
@@ -148,44 +157,98 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
     while (command){
         if(!strcmp(command, "<")||!strcmp(command, ">")||!strcmp(command, ">>")){
             if(!strcmp(command, "<")){
-                io_redirect = 1;
+                one_command->input_fd = -1;
                 if(!is_first_command){
                     fprintf(stderr, "Error: invalid command\n");
-                    return;}}
+                    return;}
+                command = strtok_r(rest_command, " ", &rest_command);
+                if(command == NULL){
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;}
+                strcpy(one_command->input_file, command);
+                command = strtok_r(rest_command, " ", &rest_command);
+                if(command != NULL){ 
+                    if(!strcmp(command, ">")){
+                        one_command->output_fd = -1;
+                        if(!is_last_command){
+                            fprintf(stderr, "Error: invalid command\n");
+                            return;}
+                        command = strtok_r(rest_command, " ", &rest_command);
+                        if(command == NULL){
+                            fprintf(stderr, "Error: invalid command\n");
+                            return;}
+                        strcpy(one_command->output_file, command);
+                        command = strtok_r(rest_command, " ", &rest_command);
+                        if(command != NULL){ 
+                            fprintf(stderr, "Error: invalid command\n");
+                            return;}
+                    }
+                    else if(!strcmp(command, ">>")){
+                        one_command->output_fd = -2; 
+                        if(!is_last_command){
+                            fprintf(stderr, "Error: invalid command\n");
+                            return;}
+                        command = strtok_r(rest_command, " ", &rest_command);
+                        if(command == NULL){
+                            fprintf(stderr, "Error: invalid command\n");
+                            return;}
+                        strcpy(one_command->output_file, command);
+                        command = strtok_r(rest_command, " ", &rest_command);
+                        if(command != NULL){ 
+                            fprintf(stderr, "Error: invalid command\n");
+                            return;}
+                    }
+                    else{
+                        fprintf(stderr, "Error: invalid command\n");
+                        return;}}        
+            }
             else if(!strcmp(command, ">")){
-                io_redirect = 2;
+                one_command->output_fd = -1;
                 if(!is_last_command){
                     fprintf(stderr, "Error: invalid command\n");
-                    return;}}
+                    return;}
+                command = strtok_r(rest_command, " ", &rest_command);
+                if(command == NULL){
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;}
+                strcpy(one_command->output_file, command);
+                command = strtok_r(rest_command, " ", &rest_command);
+                if(command != NULL){ 
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;}
+            }
             else{
-                io_redirect = 3;    
+                one_command->output_fd = -2; 
                 if(!is_last_command){
                     fprintf(stderr, "Error: invalid command\n");
-                    return;}}
-            command = strtok_r(rest_command, " ", &rest_command);
-            if(command == NULL){
-                fprintf(stderr, "Error: invalid command\n");
-                return;}
-            strcpy(redirect_path, command);
-            command = strtok_r(rest_command, " ", &rest_command);
-            if(command != NULL){ //
-                fprintf(stderr, "Error: invalid command\n");
-                return;}
-            argv[i+1] = NULL;
-            my_system(argv, io_redirect, redirect_path);
+                    return;}
+                command = strtok_r(rest_command, " ", &rest_command);
+                if(command == NULL){
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;}
+                strcpy(one_command->output_file, command);
+                command = strtok_r(rest_command, " ", &rest_command);
+                if(command != NULL){ 
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;}    
+            }
+            one_command->command[i+1] = NULL;
+            one_command->next = head;
+            head=one_command;
+            // my_system(argv, io_redirect, redirect_path);
             return;
+
+
         }
-        argv[i]  = (char*)malloc(1001*sizeof(char));
-        strcpy(argv[i], command);
+        one_command->command[i]  = (char*)malloc(1001*sizeof(char));
+        strcpy(one_command->command[i], command);
         i=i+1;
         command = strtok_r(rest_command, " ", &rest_command);
     }
-    argv[i] = NULL;
-
-    one_command->command = (char**)malloc(sizeof(argv));
-    memcpy(one_command->command, argv, sizeof(argv));
-
-    my_system(argv, 0, NULL);
+    one_command->command[i] = NULL;
+    one_command->next = head;
+    head=one_command;
+    // my_system(argv, 0, NULL);
 }
 
 
@@ -245,7 +308,16 @@ int main(){
         command_line[strlen(command_line)-1] = 0;
         command_line_parser(command_line);
 
-
+        // Link * check;
+        // check = head;
+        // while(check){
+        //     printf("%s ", check->command[0]);
+        //     printf("%d ", check->input_fd);
+        //     printf("%s ", check->input_file);
+        //     printf("%d ", check->output_fd);
+        //     printf("%s\n", check->output_file);
+        //     check = check->next;
+        // }
 
 
     }
