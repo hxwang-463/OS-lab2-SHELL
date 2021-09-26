@@ -155,13 +155,15 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             fprintf(stderr, "Error: invalid command\n");
             return;
         }
+        if(strtok_r(rest_command, " ", &rest_command)){
+            fprintf(stderr, "Error: invalid command\n");
+            return;
+        }
         Jobs* probe = head_jobs->next;
         while(probe){
             printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
             probe = probe->next;
         }
-
-
         return;
     }
     else if(!strcmp(command, "fg")){
@@ -169,9 +171,45 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             fprintf(stderr, "Error: invalid command\n");
             return;
         }
-        
+        command = strtok_r(rest_command, " ", &rest_command);
+        int job_num = atof(command);
+        if(job_num==0){
+            fprintf(stderr, "Error: invalid command\n");
+            return;
+        }
+        if(strtok_r(rest_command, " ", &rest_command)){
+            fprintf(stderr, "Error: invalid command\n");
+            return;
+        }
+        Jobs* probe = head_jobs->next;
+        while(probe){
+            if(probe->num == job_num){
+                printf("%s\n", probe->command_line);
+                for(int i=0;i<probe->pid_num;i++){
+                    kill(probe->pid[i],SIGCONT); 
+                }
+                for(int i=0;i<probe->pid_num;i++){
+                    waitpid(probe->pid[i], NULL, WUNTRACED); 
+                    // waitpid(pid_child, &wstatus, WUNTRACED);
+                }
+                // clean up
+                Jobs* temp = head_jobs;
+                while(temp->next){
+                    if(temp->next->num == job_num){
+                        if(tail_jobs == probe) tail_jobs=temp;
+                        temp->next = probe->next;
+                        free(probe);
+                        return;
+                    }
+                    else temp = temp->next;
+                }
 
 
+                return;
+            }
+            else probe = probe->next;
+        }
+        fprintf(stderr, "Error: invalid command\n");
         return;
     }
 
