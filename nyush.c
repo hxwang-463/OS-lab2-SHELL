@@ -38,6 +38,7 @@ typedef struct working_jobs{
 }W_jobs;
 W_jobs* w_job_head = NULL;
 
+
 void my_system(Link* node){
     if(!node)return;
     int pid_child, wstatus, fp;
@@ -99,8 +100,8 @@ void my_system(Link* node){
 
         my_system(node->next);
         waitpid(pid_child, &wstatus, WUNTRACED);
-        if (WIFSTOPPED(wstatus)){ // child be stopped
-            if(tail_jobs->check){ //check =1: finish; check =0: still open
+        if (WIFSTOPPED(wstatus)){  // child be stopped
+            if(tail_jobs->check){  //check =1: finish; check =0: still open
                 tail_jobs->next = (Jobs*)malloc(sizeof(Jobs));
                 tail_jobs->next->num = tail_jobs->num +1 ;
                 tail_jobs = tail_jobs->next;
@@ -119,6 +120,7 @@ void my_system(Link* node){
     return;
 }
 
+
 void command_parser(char* command_line, int is_first_command, int is_last_command, int input_fd, int output_fd){ //no pipe in this function
     int wstatus;
     if(is_first_command)head=NULL; // can be improve, free the space
@@ -136,9 +138,10 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             fprintf(stderr, "Error: invalid command\n");
             return;
         }
-        /* 检查是否有暂停程序
-
-        */
+        if(head_jobs->next){
+            fprintf(stderr, "Error: there are suspended jobs\n");
+            return;
+        }
         printf("exit\n");
         int pid = getpid();
         kill(pid, SIGKILL);
@@ -189,7 +192,7 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
         if(command==NULL&&tail_jobs)job_num = tail_jobs->num;
         else job_num = atof(command);
         if(job_num==0){
-            fprintf(stderr, "Error: invalid command\n");
+            fprintf(stderr, "Error: invalid job\n");
             return;
         }
         if(strtok_r(rest_command, " ", &rest_command)){
@@ -227,7 +230,7 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             }
             else probe = probe->next;
         }
-        fprintf(stderr, "Error: invalid command\n");
+        fprintf(stderr, "Error: invalid job\n");
         return;
     }
 
@@ -377,6 +380,7 @@ void command_line_parser(char* command_line){  //deal with pipe
     my_system(head);
 }
 
+
 void sig_int(int x){ // send signal to child process
     W_jobs *temp = w_job_head;
     while(temp){
@@ -387,10 +391,12 @@ void sig_int(int x){ // send signal to child process
     return;
 }
 
+
 void sig_ign(int x){
     printf("\n");
     return;
 }
+
 
 int main(){
     signal(SIGINT, sig_int);
@@ -423,7 +429,5 @@ int main(){
             tail_jobs->check =1;
             printf("[%d] Stopped\t%s\n", tail_jobs->num, tail_jobs->command_line);
         }
-
-        
     }
 }
