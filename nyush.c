@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#define N_pipe 10   
+#define N_pipe 100
 
 typedef struct link{
     char **command;
@@ -32,10 +32,18 @@ typedef struct jobs{
 Jobs* head_jobs = (Jobs*)malloc(sizeof(Jobs));
 Jobs* tail_jobs = head_jobs;
 
+typedef struct working_jobs{
+    int pid;
+    struct working_jobs* next;
+}W_jobs;
+W_jobs* w_job_head = NULL;
+
 void my_system(Link* node){
     if(!node)return;
     int pid_child, wstatus, fp;
-    if(pid_child = fork() == 0) {
+    pid_child = fork();
+    if(pid_child == 0) {
+        signal(SIGINT,SIG_IGN);
         if(node->input_fd){
             if(node->input_fd==-1){ //file
                 fp = open(node->input_file, O_RDWR);
@@ -84,6 +92,11 @@ void my_system(Link* node){
         exit(-1);
     }
     else{
+        W_jobs* new_node=(W_jobs*)malloc(sizeof(W_jobs));
+        new_node->pid = pid_child;
+        new_node->next = w_job_head;
+        w_job_head = new_node;
+
         my_system(node->next);
         waitpid(pid_child, &wstatus, WUNTRACED);
         if (WIFSTOPPED(wstatus)){ // child be stopped
@@ -107,7 +120,7 @@ void my_system(Link* node){
 }
 
 void command_parser(char* command_line, int is_first_command, int is_last_command, int input_fd, int output_fd){ //no pipe in this function
-
+    int wstatus;
     if(is_first_command)head=NULL; // can be improve, free the space
     char command_line_new[1001];
     memcpy(command_line_new,command_line, 1001);
@@ -172,7 +185,9 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             return;
         }
         command = strtok_r(rest_command, " ", &rest_command);
-        int job_num = atof(command);
+        int job_num;
+        if(command==NULL&&tail_jobs)job_num = tail_jobs->num;
+        else job_num = atof(command);
         if(job_num==0){
             fprintf(stderr, "Error: invalid command\n");
             return;
@@ -186,25 +201,28 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             if(probe->num == job_num){
                 printf("%s\n", probe->command_line);
                 for(int i=0;i<probe->pid_num;i++){
-                    kill(probe->pid[i],SIGCONT); 
+                    W_jobs* new_node=(W_jobs*)malloc(sizeof(W_jobs));
+                    new_node->pid = probe->pid[i];
+                    new_node->next = w_job_head;
+                    w_job_head = new_node;
+                    kill(probe->pid[i], SIGCONT); 
                 }
                 for(int i=0;i<probe->pid_num;i++){
-                    waitpid(probe->pid[i], NULL, WUNTRACED); 
-                    // waitpid(pid_child, &wstatus, WUNTRACED);
+                    waitpid(probe->pid[i], &wstatus, WUNTRACED);
                 }
-                // clean up
-                Jobs* temp = head_jobs;
-                while(temp->next){
-                    if(temp->next->num == job_num){
-                        if(tail_jobs == probe) tail_jobs=temp;
-                        temp->next = probe->next;
-                        free(probe);
-                        return;
+                if (WIFSTOPPED(wstatus)) return;
+                else{ // clean up
+                    Jobs* temp = head_jobs;
+                    while(temp->next){
+                        if(temp->next->num == job_num){
+                            if(tail_jobs == probe) tail_jobs=temp;
+                            temp->next = probe->next;
+                            free(probe);
+                            return;
+                        }
+                        else temp = temp->next;
                     }
-                    else temp = temp->next;
                 }
-
-
                 return;
             }
             else probe = probe->next;
@@ -359,18 +377,27 @@ void command_line_parser(char* command_line){  //deal with pipe
     my_system(head);
 }
 
-void sig_int(int x){
+void sig_int(int x){ // send signal to child process
+    W_jobs *temp = w_job_head;
+    while(temp){
+        if(x==2)kill(temp->pid, 9);
+        temp=temp->next;
+    }
     printf("\n");
     return;
 }
 
+void sig_ign(int x){
+    printf("\n");
+    return;
+}
 
 int main(){
     signal(SIGINT, sig_int);
-    signal(SIGQUIT, sig_int);
-    signal(SIGTERM, sig_int);
-    signal(SIGSTOP, sig_int);
     signal(SIGTSTP, sig_int);
+    signal(SIGQUIT, sig_ign);
+    signal(SIGTERM, sig_ign);
+    signal(SIGSTOP, sig_ign);
 
     head_jobs->num = 0;
     head_jobs->check = 1;
@@ -381,7 +408,7 @@ int main(){
     char slash = 0x2f;
     char* command_line = (char*)malloc(sizeof(char)*1002);
     while(1){
-
+        w_job_head = NULL;
         getcwd(working_directory, sizeof(working_directory));
         current_folder = strrchr(working_directory, slash);
         printf("[nyush %s]$ ", current_folder+1);
@@ -397,6 +424,6 @@ int main(){
             printf("[%d] Stopped\t%s\n", tail_jobs->num, tail_jobs->command_line);
         }
 
-
+        
     }
 }
