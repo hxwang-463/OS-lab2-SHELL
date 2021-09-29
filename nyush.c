@@ -115,7 +115,6 @@ void my_system(Link* node){
                 tail_jobs->pid_num += 1;
             }
         }
-
     }
     return;
 }
@@ -213,7 +212,11 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
                 for(int i=0;i<probe->pid_num;i++){
                     waitpid(probe->pid[i], &wstatus, WUNTRACED);
                 }
-                if (WIFSTOPPED(wstatus)) return;
+                if (WIFSTOPPED(wstatus)) {
+                    printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+                    return;
+                }
+
                 else{ // clean up
                     Jobs* temp = head_jobs;
                     while(temp->next){
@@ -297,7 +300,13 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
                     }
                     else{
                         fprintf(stderr, "Error: invalid command\n");
-                        return;}}        
+                        return;}
+                } 
+                else{
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;
+                }
+                       
             }
             else if(!strcmp(command, ">")){
                 one_command->output_fd = -1;
@@ -360,6 +369,10 @@ void command_line_parser(char* command_line){  //deal with pipe
     int input_fd, output_fd;
     while (command){
         command_next = strtok_r(rest_command,  "|", &rest_command);
+        if(!strcmp(command_next, " ")){
+            fprintf(stderr, "Error: invalid command\n");
+            return;
+        }
         if(command_prev==NULL) is_first_command = 1; else is_first_command = 0;
         if(command_next==NULL) is_last_command = 1; else is_last_command = 0;
         if(command_prev){ //input from previous
