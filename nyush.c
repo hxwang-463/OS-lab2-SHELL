@@ -115,7 +115,6 @@ void my_system(Link* node){
                 tail_jobs->pid_num += 1;
             }
         }
-
     }
     return;
 }
