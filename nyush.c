@@ -213,7 +213,10 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
                 for(int i=0;i<probe->pid_num;i++){
                     waitpid(probe->pid[i], &wstatus, WUNTRACED);
                 }
-                if (WIFSTOPPED(wstatus)) return;
+                if (WIFSTOPPED(wstatus)) {
+                    printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+                    return;
+                }
                 else{ // clean up
                     Jobs* temp = head_jobs;
                     while(temp->next){
@@ -297,7 +300,12 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
                     }
                     else{
                         fprintf(stderr, "Error: invalid command\n");
-                        return;}}        
+                        return;}
+                }
+                else{
+                    fprintf(stderr, "Error: invalid command\n");
+                    return;
+                }        
             }
             else if(!strcmp(command, ">")){
                 one_command->output_fd = -1;
@@ -349,6 +357,10 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
 
 void command_line_parser(char* command_line){  //deal with pipe
     char command_line_new[1001];
+    if(command_line[0]==0x7c||command_line[strlen(command_line)-1]==0x7c){
+        fprintf(stderr, "Error: invalid command\n");
+        return;
+    }
     memcpy(command_line_new, command_line, 1001);
     char* command_prev = NULL; 
     char* command; 
@@ -360,6 +372,10 @@ void command_line_parser(char* command_line){  //deal with pipe
     int input_fd, output_fd;
     while (command){
         command_next = strtok_r(rest_command,  "|", &rest_command);
+        if(!strcmp(command, " ")){
+            fprintf(stderr, "Error: invalid command\n");
+            return;
+        }
         if(command_prev==NULL) is_first_command = 1; else is_first_command = 0;
         if(command_next==NULL) is_last_command = 1; else is_last_command = 0;
         if(command_prev){ //input from previous
