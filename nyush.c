@@ -41,6 +41,14 @@ W_jobs* w_job_head = NULL;
 
 void my_system(Link* node){
     if(!node)return;
+
+    printf("%s ", node->command[0]);
+    printf("%d ", node->input_fd);
+    printf("%s ", node->input_file);
+    printf("%d ", node->output_fd);
+    printf("%s\n", node->output_file);
+
+
     int pid_child, wstatus, fp;
     pid_child = fork();
     if(pid_child == 0) {
@@ -54,6 +62,7 @@ void my_system(Link* node){
                 dup2(fp, STDIN_FILENO);
             }
             else{ //pipe
+                close(node->input_fd+1);
                 dup2(node->input_fd, STDIN_FILENO);
             }
         }
@@ -72,7 +81,10 @@ void my_system(Link* node){
                     exit(-1);}
                 dup2(fp, STDOUT_FILENO);
             }
-            else dup2(node->output_fd, STDOUT_FILENO);
+            else {
+                close(node->input_fd-1);
+                dup2(node->output_fd, STDOUT_FILENO);
+            }
         }
         
 
@@ -100,6 +112,7 @@ void my_system(Link* node){
 
         my_system(node->next);
         waitpid(pid_child, &wstatus, WUNTRACED);
+        // printf("ooooo");
         if (WIFSTOPPED(wstatus)){  // child be stopped
             if(tail_jobs->check){  //check =1: finish; check =0: still open
                 tail_jobs->next = (Jobs*)malloc(sizeof(Jobs));
@@ -300,11 +313,7 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
                     else{
                         fprintf(stderr, "Error: invalid command\n");
                         return;}
-                }
-                else{
-                    fprintf(stderr, "Error: invalid command\n");
-                    return;
-                }        
+                }    
             }
             else if(!strcmp(command, ">")){
                 one_command->output_fd = -1;
@@ -339,6 +348,18 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
             one_command->command[i+1] = NULL;
             one_command->next = head;
             head=one_command;
+
+            // Link* temp = head;
+            // if(temp==NULL){
+            //     one_command->next = head;
+            //     head=one_command;
+            // }
+            // else{
+            //     while(temp->next)temp=temp->next;
+            //     temp->next = one_command;
+            //     one_command->next = NULL;
+            // }
+            
             return;
 
 
@@ -351,6 +372,17 @@ void command_parser(char* command_line, int is_first_command, int is_last_comman
     one_command->command[i] = NULL;
     one_command->next = head;
     head=one_command;
+    // Link* temp = head;
+    // if(temp==NULL){
+    //     one_command->next = head;
+    //     head=one_command;
+    // }
+    // else{
+    //     while(temp->next)temp=temp->next;
+    //     temp->next = one_command;
+    //     one_command->next = NULL;
+    // }
+
 }
 
 
@@ -371,10 +403,6 @@ void command_line_parser(char* command_line){  //deal with pipe
     int input_fd, output_fd;
     while (command){
         command_next = strtok_r(rest_command,  "|", &rest_command);
-        if(!strcmp(command, " ")){
-            fprintf(stderr, "Error: invalid command\n");
-            return;
-        }
         if(command_prev==NULL) is_first_command = 1; else is_first_command = 0;
         if(command_next==NULL) is_last_command = 1; else is_last_command = 0;
         if(command_prev){ //input from previous
@@ -392,6 +420,18 @@ void command_line_parser(char* command_line){  //deal with pipe
         command_prev=command;
         command=command_next;
     }
+
+    // Link* temp = head;
+    // while(temp){
+    //     printf("%s ", temp->command[0]);
+    //     printf("%d ", temp->input_fd);
+    //     printf("%s ", temp->input_file);
+    //     printf("%d ", temp->output_fd);
+    //     printf("%s\n", temp->output_file);
+    //     temp=temp->next;
+    // }
+
+
     my_system(head);
 }
 
