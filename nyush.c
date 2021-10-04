@@ -37,49 +37,60 @@ typedef struct working_jobs{
     struct working_jobs* next;
 }W_jobs;
 W_jobs* w_job_head = NULL;
-
+W_jobs* pipe_fp_head = NULL; // borrow the structure
 
 void my_system(Link* node){
     if(!node)return;
-    int pid_child, wstatus, fp;
+    int pid_child, wstatus, fp_in=0, fp_out=0;
+    if(node->input_fd==-1){
+        fp_in = open(node->input_file, O_RDWR);
+        if(fp_in==-1){
+            fprintf(stderr, "Error: invalid file\n");
+            exit(-1);}
+        W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
+        temp1->pid = fp_in;
+        temp1->next = pipe_fp_head;
+        pipe_fp_head = temp1;
+    }
+    if(node->output_fd==-1){
+        fp_out = open(node->output_file, O_WRONLY|O_CREAT|O_TRUNC, 00600);
+        if(fp_out==-1){
+            fprintf(stderr, "Error: invalid file\n");
+            exit(-1);}
+        W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
+        temp1->pid = fp_out;
+        temp1->next = pipe_fp_head;
+        pipe_fp_head = temp1;
+    }
+    if(node->output_fd==-2){
+        fp_out = open(node->output_file, O_RDWR|O_CREAT|O_APPEND, 00600);
+        if(fp_out==-1){
+            fprintf(stderr, "Error: invalid file\n");
+            exit(-1);}
+        W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
+        temp1->pid = fp_out;
+        temp1->next = pipe_fp_head;
+        pipe_fp_head = temp1;
+    }
+
     pid_child = fork();
     if(pid_child == 0) {
         signal(SIGINT,SIG_IGN);
         if(node->input_fd){
-            if(node->input_fd==-1){ //file
-                fp = open(node->input_file, O_RDWR);
-                if(fp==-1){
-                    fprintf(stderr, "Error: invalid file\n");
-                    exit(-1);}
-                dup2(fp, STDIN_FILENO);
-            }
-            else{ //pipe
-                close(node->input_fd+1);
-                dup2(node->input_fd, STDIN_FILENO);
-            }
+            if(node->input_fd==-1) dup2(fp_in, STDIN_FILENO);
+            else dup2(node->input_fd, STDIN_FILENO);
         }
         if(node->output_fd){
-            if(node->output_fd==-1){
-                fp = open(node->output_file, O_WRONLY|O_CREAT|O_TRUNC, 00600);
-                if(fp==-1){
-                    fprintf(stderr, "Error: invalid file\n");
-                    exit(-1);}
-                dup2(fp, STDOUT_FILENO);
-            }
-            else if(node->output_fd==-2){
-                fp = open(node->output_file, O_RDWR|O_CREAT|O_APPEND, 00600);
-                if(fp==-1){
-                    fprintf(stderr, "Error: invalid file\n");
-                    exit(-1);}
-                dup2(fp, STDOUT_FILENO);
-            }
-            else {
-                close(node->input_fd-1);
-                dup2(node->output_fd, STDOUT_FILENO);
-            }
+            if(node->output_fd==-1) dup2(fp_out, STDOUT_FILENO);
+            else if(node->output_fd==-2) dup2(fp_out, STDOUT_FILENO);
+            else dup2(node->output_fd, STDOUT_FILENO);
         }
-        
-
+        //close not use pip
+        W_jobs* temp = pipe_fp_head;
+        while(temp){
+            if(temp->pid != node->input_fd && temp->pid != node->output_fd && temp->pid != fp_in && temp->pid !=fp_out) close(temp->pid);
+            temp = temp->next;
+        }
         char* prog_name = (char*)malloc(1001*sizeof(char));
         if(node->command[0][0]==0x2f||node->command[0][0]==0x2e){
             execv(node->command[0], node->command);
@@ -97,18 +108,23 @@ void my_system(Link* node){
         exit(-1);
     }
     else{
+
         W_jobs* new_node=(W_jobs*)malloc(sizeof(W_jobs));
         new_node->pid = pid_child;
         new_node->next = w_job_head;
         w_job_head = new_node;
+        my_system(node->next);   
+        W_jobs* temp = pipe_fp_head;
+        while(temp){
+            close(temp->pid);
+            temp = temp->next;
+        }
+        if(fp_in)close(fp_in);
+        if(fp_out)close(fp_out);
 
-        my_system(node->next);
-        
-        if(node->input_fd>0)close(node->input_fd);
-        if(node->output_fd>0)close(node->output_fd);
         waitpid(pid_child, &wstatus, WUNTRACED);
-        if (WIFSTOPPED(wstatus)){  // child be stopped
-            if(tail_jobs->check){  //check =1: finish; check =0: still open
+        if (WIFSTOPPED(wstatus)){   // child be stopped
+            if(tail_jobs->check){   //check =1: finish; check =0: still open
                 tail_jobs->next = (Jobs*)malloc(sizeof(Jobs));
                 tail_jobs->next->num = tail_jobs->num +1 ;
                 tail_jobs = tail_jobs->next;
@@ -376,9 +392,15 @@ void command_line_parser(char* command_line){  //deal with pipe
         if(command_next){ //output to next
             pipe(pipefd);
             output_fd = pipefd[1];
+            W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
+            W_jobs* temp2 = (W_jobs*)malloc(sizeof(W_jobs));
+            temp1->pid = pipefd[0];
+            temp2->pid = pipefd[1];
+            temp1->next = temp2;
+            temp2->next = pipe_fp_head;
+            pipe_fp_head = temp1;
         }
         else output_fd = -1;
-        
         if(command[0]==0x20)command = command+1;
         command_parser(command, is_first_command, is_last_command, input_fd, output_fd);
         command_prev=command;
@@ -415,7 +437,7 @@ int main(){
     head_jobs->num = 0;
     head_jobs->check = 1;
     head_jobs->next = NULL;
-
+    pipe_fp_head = NULL;
     char working_directory[1024] = {0};
     char* current_folder;
     char slash = 0x2f;
@@ -423,8 +445,9 @@ int main(){
     while(1){
         w_job_head = NULL;
         getcwd(working_directory, sizeof(working_directory));
-        current_folder = strrchr(working_directory, slash);
-        printf("[nyush %s]$ ", current_folder+1);
+        current_folder = strrchr(working_directory, slash)+1;
+        if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
+        printf("[nyush %s]$ ", current_folder);
         fgets(command_line, 1001, stdin);
         if(command_line[0] == 0x0A)continue;
         command_line[strlen(command_line)-1] = 0;
