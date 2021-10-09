@@ -46,7 +46,7 @@ void my_system(Link* node){
         fp_in = open(node->input_file, O_RDWR);
         if(fp_in==-1){
             fprintf(stderr, "Error: invalid file\n");
-            exit(-1);}
+            return;}
         W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
         temp1->pid = fp_in;
         temp1->next = pipe_fp_head;
@@ -56,7 +56,7 @@ void my_system(Link* node){
         fp_out = open(node->output_file, O_WRONLY|O_CREAT|O_TRUNC, 00600);
         if(fp_out==-1){
             fprintf(stderr, "Error: invalid file\n");
-            exit(-1);}
+            return;}
         W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
         temp1->pid = fp_out;
         temp1->next = pipe_fp_head;
@@ -66,7 +66,7 @@ void my_system(Link* node){
         fp_out = open(node->output_file, O_RDWR|O_CREAT|O_APPEND, 00600);
         if(fp_out==-1){
             fprintf(stderr, "Error: invalid file\n");
-            exit(-1);}
+            return;}
         W_jobs* temp1 = (W_jobs*)malloc(sizeof(W_jobs));
         temp1->pid = fp_out;
         temp1->next = pipe_fp_head;
