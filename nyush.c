@@ -94,7 +94,7 @@ void my_system(Link* node){
         char* prog_name = (char*)malloc(1001*sizeof(char));
         if(node->command[0][0]==0x2f||node->command[0][0]==0x2e){
             execv(node->command[0], node->command);
-            fprintf(stderr, "Error: invalid progarm\n");
+            fprintf(stderr, "Error: invalid program\n");
             exit(-1);
         }
         char prog_root[1001] = {0};
@@ -104,7 +104,7 @@ void my_system(Link* node){
         strcpy(prog_root, "/usr/bin/");
         strcat(prog_root, node->command[0]);
         execv(prog_name, node->command);
-        fprintf(stderr, "Error: invalid progarm\n");
+        fprintf(stderr, "Error: invalid program\n");
         exit(-1);
     }
     else{
@@ -178,6 +178,10 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
             fprintf(stderr, "Error: invalid command\n");
             return -1;
         }
+        if(path==NULL){
+            fprintf(stderr, "Error: invalid command\n");
+            return -1;
+        }
         char working_directory[1024] = {0};
         getcwd(working_directory, sizeof(working_directory));
         int check;
@@ -199,7 +203,11 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
         }
         Jobs* probe = head_jobs->next;
         while(probe){
-            printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+            if(fork()==0){
+                printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+                exit(-1);
+            }
+            else wait(NULL);
             probe = probe->next;
         }
         return 0;
@@ -226,7 +234,11 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
         Jobs* probe = head_jobs->next;
         while(probe){
             if(probe->num == job_num){
-                printf("%s\n", probe->command_line);
+                if(fork()==0){
+                    printf("%s\n", probe->command_line);
+                    exit(-1);
+                }
+                else wait(NULL);
                 for(int i=0;i<probe->pid_num;i++){
                     W_jobs* new_node=(W_jobs*)malloc(sizeof(W_jobs));
                     new_node->pid = probe->pid[i];
@@ -238,7 +250,11 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
                     waitpid(probe->pid[i], &wstatus, WUNTRACED);
                 }
                 if (WIFSTOPPED(wstatus)) {
-                    printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+                    if(fork()==0){
+                        printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+                        exit(-1);
+                    }
+                    else wait(NULL);
                     return 0;
                 }
                 else{ // clean up
@@ -374,7 +390,7 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
 
 void command_line_parser(char* command_line){  //deal with pipe
     char command_line_new[1001];
-    if(command_line[0]==0x7c||command_line[strlen(command_line)-1]==0x7c){
+    if(command_line[0]==0x7c||command_line[strlen(command_line)-1]==0x7c||command_line[1]==0x7c||command_line[strlen(command_line)-2]==0x7c){
         fprintf(stderr, "Error: invalid command\n");
         return;
     }
@@ -434,13 +450,28 @@ void sig_ign(int x){
 }
 
 
+int get_line(char *command_line){
+    char c;
+    int i=0;
+    do {
+        c = fgetc(stdin);
+        if( c==EOF ) {printf("\n"); return 0;}
+        if (c==0x0A){
+            command_line[i] = 0;
+            return 1;
+        }
+        command_line[i] = c;
+        i += 1;
+    }while(1);
+}
+
 int main(){
     signal(SIGINT, sig_int);
     signal(SIGTSTP, sig_int);
     signal(SIGQUIT, sig_ign);
     signal(SIGTERM, sig_ign);
     signal(SIGSTOP, sig_ign);
-
+    
     head_jobs->num = 0;
     head_jobs->check = 1;
     head_jobs->next = NULL;
@@ -449,17 +480,23 @@ int main(){
     char* current_folder;
     char slash = 0x2f;
     char* command_line = (char*)malloc(sizeof(char)*1002);
+    // getcwd(working_directory, sizeof(working_directory));
+    // current_folder = strrchr(working_directory, slash)+1;
+    // if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
+    // printf("[nyush %s]$ ", current_folder);
     while(1){
         w_job_head = NULL;
-        getcwd(working_directory, sizeof(working_directory));
-        current_folder = strrchr(working_directory, slash)+1;
-        if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
-        printf("[nyush %s]$ ", current_folder);
-        fgets(command_line, 1001, stdin);
-        if(command_line[0] == 0x0A)continue;
-        command_line[strlen(command_line)-1] = 0;
+        if(fork()==0){
+            getcwd(working_directory, sizeof(working_directory));
+            current_folder = strrchr(working_directory, slash)+1;
+            if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
+            printf("[nyush %s]$ ", current_folder);
+            exit(-1);
+        }
+        else wait(NULL);
+        if(get_line(command_line)==0) return 0;
+        if(command_line[0] == 0)continue;
         command_line_parser(command_line);
-
         if(tail_jobs->check == 0){
             tail_jobs->command_line = (char*)malloc(1001*sizeof(char));
             strcpy(tail_jobs->command_line, command_line);
