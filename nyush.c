@@ -203,11 +203,9 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
         }
         Jobs* probe = head_jobs->next;
         while(probe){
-            if(fork()==0){
-                printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
-                exit(-1);
-            }
-            else wait(NULL);
+            fflush(stdout);
+            printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+            fflush(stdout);
             probe = probe->next;
         }
         return 0;
@@ -234,11 +232,9 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
         Jobs* probe = head_jobs->next;
         while(probe){
             if(probe->num == job_num){
-                if(fork()==0){
-                    printf("%s\n", probe->command_line);
-                    exit(-1);
-                }
-                else wait(NULL);
+                fflush(stdout);
+                printf("%s\n", probe->command_line);
+                fflush(stdout);
                 for(int i=0;i<probe->pid_num;i++){
                     W_jobs* new_node=(W_jobs*)malloc(sizeof(W_jobs));
                     new_node->pid = probe->pid[i];
@@ -250,11 +246,9 @@ int command_parser(char* command_line, int is_first_command, int is_last_command
                     waitpid(probe->pid[i], &wstatus, WUNTRACED);
                 }
                 if (WIFSTOPPED(wstatus)) {
-                    if(fork()==0){
-                        printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
-                        exit(-1);
-                    }
-                    else wait(NULL);
+                    fflush(stdout);
+                    printf("[%d] Stopped\t%s\n", probe->num, probe->command_line);
+                    fflush(stdout);
                     return 0;
                 }
                 else{ // clean up
@@ -486,14 +480,13 @@ int main(){
     // printf("[nyush %s]$ ", current_folder);
     while(1){
         w_job_head = NULL;
-        if(fork()==0){
-            getcwd(working_directory, sizeof(working_directory));
-            current_folder = strrchr(working_directory, slash)+1;
-            if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
-            printf("[nyush %s]$ ", current_folder);
-            exit(-1);
-        }
-        else wait(NULL);
+        
+        getcwd(working_directory, sizeof(working_directory));
+        current_folder = strrchr(working_directory, slash)+1;
+        if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
+        fflush(stdout);
+        printf("[nyush %s]$ ", current_folder);
+        fflush(stdout);
         if(get_line(command_line)==0) return 0;
         if(command_line[0] == 0)continue;
         command_line_parser(command_line);
