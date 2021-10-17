@@ -474,10 +474,7 @@ int main(){
     char* current_folder;
     char slash = 0x2f;
     char* command_line = (char*)malloc(sizeof(char)*1002);
-    // getcwd(working_directory, sizeof(working_directory));
-    // current_folder = strrchr(working_directory, slash)+1;
-    // if(!strcmp(current_folder, ""))strcpy(current_folder, "/");
-    // printf("[nyush %s]$ ", current_folder);
+
     while(1){
         w_job_head = NULL;
         
