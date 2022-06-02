@@ -15,12 +15,12 @@ If you entered something wrong, then the shell prints an error message.
 Rinse and repeat until you enter the built-in command exit, at which point it exits.
 ## Specifications
 ### The prompt
-The prompt is what the shell prints before waiting for you to enter a command. In this lab, you will use the following format (the final underscore represents your cursor; you should not print that underscore):
-
+The prompt is what the shell prints before waiting for you to enter a command. In this lab, you will use the following format (the final underscore represents your cursor; you should not print that underscore):  
 ```[nyush dir]$ _```
-The dir is the basename of the current working directory. For example, if you are in /home/abc123/os/lab2, then the prompt should be:
-
+  
+The dir is the basename of the current working directory. For example, if you are in /home/abc123/os/lab2, then the prompt should be:  
 ```[nyush lab2]$ _```
+  
 Note that there is a space after the dollar sign.
 
 ### The command
@@ -29,10 +29,10 @@ In each iteration, the user inputs a command terminated by the “enter” key (
 Each command has no more than 1000 characters.
 Program arguments, if any, are separated by a single space.
 There is no space within the program name or any command-line argument.
-A command may contain multiple programs separated by the pipe (|) symbol.
-In each command, the first program may redirect its input using <, and the last program may redirect its output using > or >>. If there is only one program in the command, it may redirect both input and output.
+A command may contain multiple programs separated by the pipe (```|```) symbol.
+In each command, the first program may redirect its input using ```<```, and the last program may redirect its output using ```>``` or ```>>```. If there is only one program in the command, it may redirect both input and output.
 In each command, there may be at most one input redirection and one output redirection.
-Built-in commands (e.g., cd) cannot be I/O redirected or piped.
+Built-in commands (e.g., ```cd```) cannot be I/O redirected or piped.
 For your reference, here is the grammar for valid commands (don’t worry if you can’t understand it; just look at the examples below):
 ```
 [command] := ""; or
@@ -63,7 +63,7 @@ For your reference, here is the grammar for valid commands (don’t worry if you
 ```
 Here are some examples of valid commands:
 ```
-A blank line.
+[A blank line.]
 ls -a -l
 cat shell.c | grep main | less
 cat < input.txt > output.txt
@@ -88,10 +88,11 @@ If there is any error in parsing the command, then your shell should print the f
 
 Error: invalid command
 Note that there should be a newline at the end of the error message. For example:
-
-```[nyush lab2]$ cat <```
-Error: invalid command
-```[nyush lab2]$ _```
+```
+[nyush lab2]$ cat <  
+Error: invalid command  
+[nyush lab2]$ _
+```
 ### Locating programs
 You can specify a program by either an absolute path, a relative path, or base name only.
 
@@ -126,14 +127,12 @@ As a side note, if your shell ever hangs and you would like to kill the shell, y
 Sometimes, a user would read the input to a program from a file rather than the keyboard, or send the output of a program to a file rather than the screen. Your shell should be able to redirect the standard input (STDIN) and the standard output (STDOUT). For simplicity, you are not required to redirect the standard error (STDERR).
 
 #### Input redirection
-Input redirection is achieved by a < symbol followed by a file name. For example:
-
-```[nyush lab2]$ cat < input.txt```
+Input redirection is achieved by a ```<``` symbol followed by a file name. For example: ```[nyush lab2]$ cat < input.txt```  
 If the file does not exist, your shell should print the following error message to STDERR and prompt for the next command.
 
 ```Error: invalid file```
 #### Output redirection
-Output redirection is achieved by > or >> followed by a file name. For example:
+Output redirection is achieved by ```>``` or ```>>``` followed by a file name. For example:
 ```
 [nyush lab2]$ ls -l > output.txt
 [nyush lab2]$ ls -l >> output.txt
@@ -159,12 +158,9 @@ In this lab, you will implement four built-in commands: ```cd```, ```jobs```, ``
 #### ```cd [dir]```
 This command changes the current working directory of the shell. It takes exactly one argument: the directory, which may be an absolute or relative path.
 
-If cd is called with 0 or 2+ arguments, your shell should print the following error message to STDERR and prompt for the next command.
-
-```Error: invalid command```
-If the directory does not exist, your shell should print the following error message to STDERR and prompt for the next command.
-
-```Error: invalid directory```
+If cd is called with 0 or 2+ arguments, your shell should print the following error message to STDERR and prompt for the next command.```Error: invalid command``` 
+  
+If the directory does not exist, your shell should print the following error message to STDERR and prompt for the next command.```Error: invalid directory```
 #### ```jobs```
 This command prints a list of currently suspended jobs to STDOUT in the following format: ```[index] command```. For example:
 ```
@@ -192,19 +188,15 @@ This command resumes a job in the foreground. It takes exactly one argument: the
 ```
 This command would resume ```top | cat``` in the foreground.
 
-If fg is called with 0 or 2+ arguments, your shell should print the following error message to STDERR and prompt for the next command.
+If fg is called with 0 or 2+ arguments, your shell should print the following error message to STDERR and prompt for the next command. ```Error: invalid command```
+  
+If the job index does not exist in the list of currently suspended jobs, your shell should print the following error message to STDERR and prompt for the next command.```Error: invalid job```
 
-```Error: invalid command```
-If the job index does not exist in the list of currently suspended jobs, your shell should print the following error message to STDERR and prompt for the next command.
-
-```Error: invalid job```
 #### ```exit```
-This command terminates your shell. However, if there are currently suspended jobs, your shell should not terminate. Instead, it should print the following error message to STDERR and prompt for the next command.
+This command terminates your shell. However, if there are currently suspended jobs, your shell should not terminate. Instead, it should print the following error message to STDERR and prompt for the next command. ```Error: there are suspended jobs```
+  
+The exit command takes no arguments. If it is called with any arguments, your shell should print the following error message to STDERR and prompt for the next command.```Error: invalid command```
 
-```Error: there are suspended jobs```
-The exit command takes no arguments. If it is called with any arguments, your shell should print the following error message to STDERR and prompt for the next command.
-
-```Error: invalid command```
 ## Compiling
 CentOS Linux release 7.9.2009. We will compile your program using gcc 9.2.0. You need to run the following command to load it:
 
